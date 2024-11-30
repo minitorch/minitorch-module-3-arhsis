@@ -43,8 +43,10 @@ def index_to_position(index: Index, strides: Strides) -> int:
     Returns:
         Position in storage
     """
-
-    return sum(idx * stride for idx, stride in zip(index, strides))
+    _sum = 0
+    for i in numba.prange(len(index)):
+        _sum += index[i]*strides[i]
+    return _sum
 
 
 def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
@@ -60,10 +62,26 @@ def to_index(ordinal: int, shape: Shape, out_index: OutIndex) -> None:
         out_index : return index corresponding to position.
     """
     # fixme: understanding this code more intuitive
-    for i in reversed(range(len(shape))):
+    # _out_index = np.zeros(len(shape), dtype=int)
+    # for i in range(len(shape)):
+    #     idx = len(shape)-i-1
+    #     out_index[idx] = ordinal % shape[idx]
+    #     ordinal = ordinal // shape[idx]
+    idx = range(len(shape) - 1, -1, -1)
+    ordinal = ordinal + 0
+    for i in idx:
+        # Calculate the index from the back without overwriting loop index `i`
         out_index[i] = ordinal % shape[i]
         ordinal = ordinal // shape[i]
+    
+    # _ordinal = np.array([ordinal] * len(shape))
+    # for i in numba.prange(len(shape)):
+    #     idx = len(shape) - i - 1
+    #     out_index[idx] = _ordinal[idx] % shape[idx]
+    #     _ordinal[idx] = _ordinal[idx] // shape[idx]
+    # print(f"{ordinal}, {shape}, {out_index}")
 
+    # assert(_out_index == out_index)
 
 
 def broadcast_index(
