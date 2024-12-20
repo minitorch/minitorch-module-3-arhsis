@@ -363,9 +363,26 @@ def _tensor_matrix_multiply(
     """
     a_batch_stride = a_strides[0] if a_shape[0] > 1 else 0
     b_batch_stride = b_strides[0] if b_shape[0] > 1 else 0
+    out_batch_stride = out_strides[0] if out_shape[0] > 1 else 0
 
-    # TODO: Implement for Task 3.2.
-    raise NotImplementedError("Need to implement for Task 3.2")
+    # Create batch position arrays using list comprehension with ternary operators
+    a_batch_pos = [0] * out_shape[0] if a_shape[0] == 1 else [a_batch_stride * i for i in range(a_shape[0])]
+    b_batch_pos = [0] * out_shape[0] if b_shape[0] == 1 else [b_batch_stride * i for i in range(b_shape[0])]
+    out_batch_pos = [out_batch_stride * i for i in range(out_shape[0])]
+
+
+    for b in prange(out_shape[0]):
+        for i in range(out_shape[1]):
+            for j in range(out_shape[2]):
+                # find out the position relationship of out, a and b
+                out_pos = out_batch_pos[b] + out_strides[1] * i + out_strides[2] * j
+                a_pos_start = a_batch_pos[b] + a_strides[1] * i
+                b_pos_start = b_batch_pos[b] + b_strides[2] * j
+                for k in range(a_shape[-1]):
+                    a_pos = a_pos_start + a_strides[-1] * k
+                    b_pos = b_pos_start + b_strides[1] * k
+                    out[out_pos] += a_storage[a_pos] * b_storage[b_pos]
+
 
 
 tensor_matrix_multiply = njit(_tensor_matrix_multiply, parallel=True)
