@@ -474,8 +474,53 @@ def _tensor_matrix_multiply(
     #    a) Copy into shared memory for a matrix.
     #    b) Copy into shared memory for b matrix
     #    c) Compute the dot produce for position c[i, j]
-    # TODO: Implement for Task 3.4.
-    raise NotImplementedError("Need to implement for Task 3.4")
+
+    out_batch_stride = out_strides[0] if out_shape[0] > 1 else 0
+
+    # Adjust the base index for the batch based on whether batching exists in a and b
+    a_offset = 0 if a_shape[0] == 1 else batch * a_batch_stride
+    b_offset = 0 if b_shape[0] == 1 else batch * b_batch_stride
+    out_offset = batch * out_batch_stride
+
+    # Initialize the result
+    value = 0.0
+
+    # Move across the shared dimension by blocks
+    for tile in range((a_shape[-1] + BLOCK_DIM - 1) // BLOCK_DIM):
+        # Load tiles into shared memory
+        tile_a_col = tile * BLOCK_DIM + pj
+        tile_b_row = tile * BLOCK_DIM + pi
+
+        # Compute flattened index manually for a
+        if i < a_shape[-2] and tile_a_col < a_shape[-1]:
+            a_index = a_offset + i * a_strides[-2] + tile_a_col * a_strides[-1]
+            a_shared[pi, pj] = a_storage[a_index]
+        else:
+            a_shared[pi, pj] = 0.0
+
+        # Compute flattened index manually for b
+        if tile_b_row < b_shape[-2] and j < b_shape[-1]:
+            b_index = b_offset + tile_b_row * b_strides[-2] + j * b_strides[-1]
+            b_shared[pi, pj] = b_storage[b_index]
+        else:
+            b_shared[pi, pj] = 0.0
+
+        # Synchronize to ensure shared memory is fully loaded
+        cuda.syncthreads()
+
+        # Compute partial dot product for c[i, j]
+        for k in range(BLOCK_DIM):
+            value += a_shared[pi, k] * b_shared[k, pj]
+
+        # Synchronize before moving to the next tile
+        cuda.syncthreads()
+
+    # Compute flattened index manually for out
+    if i < out_shape[-2] and j < out_shape[-1]:
+        out_index = out_offset + i * out_strides[-2] + j * out_strides[-1]
+        out[out_index] = value
+
+
 
 
 tensor_matrix_multiply = jit(_tensor_matrix_multiply)
